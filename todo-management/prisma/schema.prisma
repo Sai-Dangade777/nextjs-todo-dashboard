@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TodoStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TodoPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  name        String
+  password    String
+  role        UserRole  @default(USER)
+  isActive    Boolean   @default(true)
+  profilePic  String?   // path to profile picture
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLogin   DateTime?
+  
+  // Relations
+  createdTodos    Todo[] @relation("TodoCreator")
+  assignedTodos   Todo[] @relation("TodoAssignee")
+  files           File[]
+  notifications   Notification[]
+  
+  @@map("users")
+}
+
+model Todo {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      TodoStatus  @default(PENDING)
+  priority    TodoPriority @default(MEDIUM)
+  dueDate     DateTime?
+  position    Int?        // for drag and drop ordering
+  
+  // Relations
+  creatorId   String
+  creator     User        @relation("TodoCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  assigneeId  String
+  assignee    User        @relation("TodoAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  
+  files       File[]
+  notifications Notification[]
+  
+  // Timestamps
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  completedAt DateTime?
+  
+  @@map("todos")
+  @@index([assigneeId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model File {
+  id          String    @id @default(cuid())
+  fileName    String
+  originalName String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  
+  // Relations
+  todoId      String?
+  todo        Todo?     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  
+  uploadedById String
+  uploadedBy  User      @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  uploadedAt  DateTime  @default(now())
+  
+  @@map("files")
+  @@index([todoId])
+  @@index([uploadedById])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  type        String    // "todo_assigned", "todo_updated", "todo_completed", etc.
+  
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  todoId      String?
+  todo        Todo?     @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  
+  // Metadata for notification context
+  metadata    Json?
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+  
+  @@map("notifications")
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
