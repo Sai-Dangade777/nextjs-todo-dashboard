@@ -9,9 +9,17 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Camera, Save, User, Mail, Calendar, Shield } from 'lucide-react'
+import { Camera, Save, User, Mail, Calendar, Shield, Lock } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth()
@@ -20,6 +28,13 @@ export default function ProfilePage() {
   
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordFormData, setPasswordFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || ''
@@ -276,28 +291,159 @@ export default function ProfilePage() {
                   <p className="font-medium">Password</p>
                   <p className="text-sm text-gray-500">Last changed: Never</p>
                 </div>
-                <Button variant="outline" disabled>
+                <Button variant="outline" onClick={() => setShowPasswordModal(true)}>
                   Change Password
                 </Button>
               </div>
               
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium">Two-Factor Authentication</p>
-                  <p className="text-sm text-gray-500">Add an extra layer of security</p>
-                </div>
-                <Button variant="outline" disabled>
-                  Setup 2FA
-                </Button>
-              </div>
-              
-              <p className="text-xs text-gray-500 mt-4">
-                * Security features will be available in a future update
-              </p>
+              {/* 2FA feature removed as requested */}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Password Change Modal */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new password.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Current Password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                placeholder="Enter your current password"
+                value={passwordFormData.currentPassword}
+                onChange={(e) => setPasswordFormData(prev => ({
+                  ...prev,
+                  currentPassword: e.target.value
+                }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                placeholder="Enter your new password"
+                value={passwordFormData.newPassword}
+                onChange={(e) => setPasswordFormData(prev => ({
+                  ...prev,
+                  newPassword: e.target.value
+                }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                placeholder="Confirm your new password"
+                value={passwordFormData.confirmPassword}
+                onChange={(e) => setPasswordFormData(prev => ({
+                  ...prev,
+                  confirmPassword: e.target.value
+                }))}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPasswordModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handlePasswordChange} 
+              disabled={passwordLoading}
+              className="ml-2"
+            >
+              <Lock className="w-4 h-4 mr-2" />
+              {passwordLoading ? 'Updating...' : 'Update Password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
+
+  // Password change handler
+  function handlePasswordChange() {
+    // Validate inputs
+    if (!passwordFormData.currentPassword) {
+      toast({
+        title: "Error",
+        description: "Current password is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!passwordFormData.newPassword) {
+      toast({
+        title: "Error",
+        description: "New password is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (passwordFormData.newPassword.length < 8) {
+      toast({
+        title: "Error",
+        description: "New password must be at least 8 characters long",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Submit password change request
+    setPasswordLoading(true);
+    api.put(`/users/${user?.id}/password`, {
+      currentPassword: passwordFormData.currentPassword,
+      newPassword: passwordFormData.newPassword
+    })
+    .then(() => {
+      toast({
+        title: "Success",
+        description: "Password changed successfully"
+      });
+      
+      // Reset form and close modal
+      setPasswordFormData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setShowPasswordModal(false);
+    })
+    .catch(error => {
+      console.error("Password change error:", error);
+      const errorMessage = error.response?.data?.error?.message || "Failed to change password";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    })
+    .finally(() => {
+      setPasswordLoading(false);
+    });
+  }
 }

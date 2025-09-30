@@ -181,24 +181,7 @@ export async function DELETE(
           files: targetUser._count.files
         }
       })
-    } else {
-      // Soft delete - deactivate user but keep data
-      await prisma.user.update({
-        where: { id: targetUserId },
-        data: {
-          isActive: false,
-          email: `deleted_${Date.now()}_${targetUser.email}` // Prevent email conflicts
-        }
-      })
-
-      return createSuccessResponse({ 
-        message: 'User deactivated successfully (data preserved)',
-        preservedData: {
-          todos: targetUser._count.createdTodos + targetUser._count.assignedTodos,
-          files: targetUser._count.files
-        }
-      })
-    }
+    } 
 
   } catch (error) {
     console.error('Delete user error:', error)

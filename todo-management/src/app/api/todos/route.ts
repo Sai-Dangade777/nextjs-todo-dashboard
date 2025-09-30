@@ -33,9 +33,12 @@ export async function GET(request: NextRequest) {
 
     // Apply user-specific filters
     if (filter === 'assigned_to_me') {
+      // Only show todos assigned to the current user
       where.assigneeId = user.id
     } else if (filter === 'created_by_me') {
+      // Only show todos created by the current user AND assigned to other users
       where.creatorId = user.id
+      where.assigneeId = { not: user.id }
     } else {
       // Default: show todos where user is either creator or assignee
       where.OR = [

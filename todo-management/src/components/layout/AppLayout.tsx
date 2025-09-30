@@ -39,6 +39,8 @@ interface Notification {
   todo?: {
     id: string
     title: string
+    dueDate?: string
+    status: string
   }
 }
 
@@ -92,10 +94,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
       // Navigate to related todo if exists
       if (notification.todo) {
-        router.push('/todos')
+        router.push(`/todos?highlight=${notification.todo.id}`)
       }
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
+    }
+  }
+  
+  const handleMarkAllAsRead = async () => {
+    try {
+      // Mark all as read via API
+      await api.put('/notifications/mark-all-read')
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => ({ ...n, isRead: true }))
+      )
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error)
     }
   }
 
@@ -151,9 +167,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
             <div className="flex items-center">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.profilePic || ''} />
+                <AvatarImage src={user?.profilePic || ''} alt={user?.name} />
                 <AvatarFallback>
-                  {user?.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                  {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="ml-3">
@@ -233,22 +249,94 @@ export default function AppLayout({ children }: AppLayoutProps) {
             
             <div className="ml-4 flex items-center md:ml-6 space-x-3">
               {/* Notifications */}
-              <Button variant="ghost" size="sm" className="relative">
-                <Bell className="h-5 w-5" />
-                {/* Notification badge - you can add real count later */}
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                  3
-                </Badge>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="relative">
+                    <Bell className="h-5 w-5" />
+                    {unreadCount > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                        {unreadCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-80" align="end">
+                  <div className="flex items-center justify-between p-2 border-b">
+                    <p className="font-medium">Notifications</p>
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <>
+                          <Badge variant="secondary">{unreadCount} new</Badge>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-6 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAllAsRead();
+                            }}
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            Mark all read
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {notifications.length > 0 ? (
+                    <div className="max-h-[500px] overflow-y-auto">
+                      {notifications.map((notification) => (
+                        <DropdownMenuItem 
+                          key={notification.id} 
+                          className={`p-3 border-b last:border-0 cursor-pointer ${!notification.isRead ? 'bg-blue-50' : ''}`}
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <div className="space-y-1 w-full">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-sm">{notification.title}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(notification.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <p className="text-sm text-gray-600">{notification.message}</p>
+                            {notification.todo && (
+                              <div className="mt-1 p-2 bg-gray-50 rounded text-xs">
+                                <div className="flex items-center justify-between">
+                                  <p className="font-medium">Task: {notification.todo.title}</p>
+                                  <Badge variant={
+                                    notification.todo.status === 'COMPLETED' ? 'success' : 
+                                    notification.todo.status === 'IN_PROGRESS' ? 'warning' : 'default'
+                                  }>
+                                    {notification.todo.status.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                {notification.todo.dueDate && (
+                                  <p className="mt-1">
+                                    Due: {new Date(notification.todo.dueDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      No notifications
+                    </div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* User dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.profilePic || ''} />
+                      <AvatarImage src={user?.profilePic || ''} alt={user?.name} />
                       <AvatarFallback>
-                        {user?.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                        {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -256,6 +344,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <div className="flex items-center justify-start gap-2 p-2">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user?.profilePic || ''} alt={user?.name} />
+                      <AvatarFallback>
+                        {user?.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{user?.name}</p>
                       <p className="text-xs leading-none text-muted-foreground">

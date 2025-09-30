@@ -2,24 +2,28 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSearchParams } from 'next/navigation'
 import api from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Label } from '@/components/ui/label'
 import { Plus, Calendar, User, Paperclip, Edit } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import TodoModal from '@/components/TodoModal'
+import { useToast } from '@/hooks/use-toast'
 
 interface Todo {
   id: string
   title: string
   description?: string
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'
-  priority: 'LOW' | 'MEDIUM' | 'HIGH'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   dueDate?: string
   createdAt: string
+  assigneeId: string // Required for compatibility with TodoModal
   creator: {
+    id: string
     name: string
     email: string
   }
@@ -36,10 +40,11 @@ interface Todo {
 
 export default function TodosPage() {
   const { user } = useAuth()
-  const [myTodos, setMyTodos] = useState<Todo[]>([])
-  const [assignedTodos, setAssignedTodos] = useState<Todo[]>([])
+  const { toast } = useToast()
+  const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('my-todos')
+  const [activeFilter, setActiveFilter] = useState<'assigned-to-me' | 'created-by-me' | 'all'>('assigned-to-me')
   const [showTodoModal, setShowTodoModal] = useState(false)
   const [selectedTodo, setSelectedTodo] = useState<Todo | null>(null)
 
@@ -47,17 +52,11 @@ export default function TodosPage() {
     try {
       setLoading(true)
       
-      // Fetch todos assigned to me
-      const myTodosResponse = await api.get('/todos', {
-        params: { filter: 'assigned-to-me' }
+      // Fetch todos based on active filter
+      const response = await api.get('/todos', {
+        params: { filter: activeFilter }
       })
-      setMyTodos(myTodosResponse.data.data.todos)
-
-      // Fetch todos I created
-      const assignedTodosResponse = await api.get('/todos', {
-        params: { filter: 'created-by-me' }
-      })
-      setAssignedTodos(assignedTodosResponse.data.data.todos)
+      setTodos(response.data.data.todos)
       
     } catch (error) {
       console.error('Failed to fetch todos:', error)
@@ -68,7 +67,26 @@ export default function TodosPage() {
 
   useEffect(() => {
     fetchTodos()
-  }, [])
+  }, [activeFilter])
+  
+  // Handle highlight from notification
+  const searchParams = useSearchParams()
+  
+  useEffect(() => {
+    // Check if there's a highlight parameter in the URL
+    const highlightId = searchParams.get('highlight')
+    
+    if (highlightId && todos.length > 0) {
+      // Find the highlighted todo
+      const highlightedTodo = todos.find(todo => todo.id === highlightId)
+      
+      if (highlightedTodo) {
+        // Open the todo in the modal
+        setSelectedTodo(highlightedTodo)
+        setShowTodoModal(true)
+      }
+    }
+  }, [searchParams, todos])
 
   const handleDragStart = (e: React.DragEvent, todoId: string) => {
     e.dataTransfer.setData('text/plain', todoId)
@@ -79,10 +97,15 @@ export default function TodosPage() {
     const todoId = e.dataTransfer.getData('text/plain')
     
     try {
-      await api.put(`/todos/${todoId}`, { status: newStatus })
+      await api.put(`/todos/${todoId}/status`, { status: newStatus })
       fetchTodos() // Refresh the list
     } catch (error) {
       console.error('Failed to update todo status:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update todo status. You might not have permission.",
+        variant: "destructive"
+      })
     }
   }
 
@@ -125,8 +148,8 @@ export default function TodosPage() {
   const TodoCard = ({ todo }: { todo: Todo }) => (
     <Card
       key={todo.id}
-      className="mb-4 cursor-move hover:shadow-md transition-shadow"
-      draggable
+      className={`mb-4 ${todo.creator.id === user?.id || todo.assigneeId === user?.id ? 'cursor-move' : 'cursor-default'} hover:shadow-md transition-shadow`}
+      draggable={todo.creator.id === user?.id || todo.assigneeId === user?.id}
       onDragStart={(e) => handleDragStart(e, todo.id)}
     >
       <CardHeader className="pb-3">
@@ -136,14 +159,18 @@ export default function TodosPage() {
             <Badge className={getPriorityColor(todo.priority)}>
               {todo.priority}
             </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEditTodo(todo)}
-              className="h-6 w-6 p-0"
-            >
-              <Edit className="w-3 h-3" />
-            </Button>
+            {/* Only show edit button if user is the creator */}
+            {todo.creator.id === user?.id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditTodo(todo)}
+                className="h-6 w-6 p-0"
+                title="Edit Todo"
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+            )}
           </div>
         </CardTitle>
       </CardHeader>
@@ -209,52 +236,58 @@ export default function TodosPage() {
           </Button>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="my-todos">My Todos</TabsTrigger>
-            <TabsTrigger value="assigned-todos">Assigned by Me</TabsTrigger>
-          </TabsList>
+        <div className="mb-6">
+          <div className="flex items-center space-x-4 mb-4">
+            <Label className="font-medium">View:</Label>
+            <div className="flex space-x-2">
+              <Button 
+                variant={activeFilter === 'assigned-to-me' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setActiveFilter('assigned-to-me')}
+              >
+                Todos for me
+              </Button>
+              <Button 
+                variant={activeFilter === 'created-by-me' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setActiveFilter('created-by-me')}
+              >
+                Todos for others
+              </Button>
+              <Button 
+                variant={activeFilter === 'all' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setActiveFilter('all')}
+              >
+                All Todos
+              </Button>
+            </div>
+          </div>
           
-          <TabsContent value="my-todos" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <p>Loading todos...</p>
+            </div>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <StatusColumn 
                 title="Pending" 
                 status="PENDING" 
-                todos={myTodos} 
+                todos={todos} 
               />
               <StatusColumn 
                 title="In Progress" 
                 status="IN_PROGRESS" 
-                todos={myTodos} 
+                todos={todos} 
               />
               <StatusColumn 
                 title="Completed" 
                 status="COMPLETED" 
-                todos={myTodos} 
+                todos={todos} 
               />
             </div>
-          </TabsContent>
-          
-          <TabsContent value="assigned-todos" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatusColumn 
-                title="Pending" 
-                status="PENDING" 
-                todos={assignedTodos} 
-              />
-              <StatusColumn 
-                title="In Progress" 
-                status="IN_PROGRESS" 
-                todos={assignedTodos} 
-              />
-              <StatusColumn 
-                title="Completed" 
-                status="COMPLETED" 
-                todos={assignedTodos} 
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
         
         {/* Todo Create/Edit Modal */}
         <TodoModal

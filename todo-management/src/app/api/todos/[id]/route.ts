@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { authenticateUser, createErrorResponse, createSuccessResponse, canAccessTodo } from '@/middleware/auth'
+import { authenticateUser, createErrorResponse, createSuccessResponse, canAccessTodo, canModifyTodo } from '@/middleware/auth'
 import prisma from '@/lib/db/prisma'
 import { UpdateTodoRequest } from '@/types'
 
@@ -86,9 +86,9 @@ export async function PUT(
 
     const todoId = params.id
 
-    // Check if user can access this todo
-    if (!await canAccessTodo(user.id, todoId)) {
-      return createErrorResponse('Access denied', 403)
+    // Check if user can modify this todo (creator or assignee can modify)
+    if (!await canModifyTodo(user.id, todoId)) {
+      return createErrorResponse('Access denied: Only the creator or assignee of the todo can modify it', 403)
     }
 
     const body: UpdateTodoRequest = await request.json()

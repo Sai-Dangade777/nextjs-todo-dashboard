@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Search, MoreHorizontal, UserCheck, UserX, Eye, Trash2, Plus } from 'lucide-react'
-import AppLayout from '@/components/layout/AppLayout'
+import AppLayout from '@/components/layout/AppLayout';
 import CreateUserModal from '@/components/CreateUserModal'
 import { useToast } from '@/hooks/use-toast'
 
@@ -53,7 +53,6 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showDeactivated, setShowDeactivated] = useState(false)
 
   const fetchUsers = async () => {
     try {
@@ -65,7 +64,7 @@ export default function AdminUsersPage() {
           search,
           sortBy: 'createdAt',
           sortOrder: 'desc',
-          isActive: showDeactivated ? null : 'true' // Show all if showDeactivated, only active otherwise
+          isActive: 'true' // Only show active users
         }
       })
       setUsers(response.data.data.users)
@@ -92,7 +91,7 @@ export default function AdminUsersPage() {
       return
     }
     fetchUsers()
-  }, [page, search, user, showDeactivated])
+  }, [page, search, user])
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     try {
@@ -117,10 +116,10 @@ export default function AdminUsersPage() {
   }
 
   const handleDeleteUser = async (userId: string, userName: string, hardDelete: boolean = false) => {
-    const deleteType = hardDelete ? 'permanently delete' : 'deactivate'
+    const deleteType = hardDelete ? 'permanently delete' : 'deactivate';
     const warningMessage = hardDelete 
       ? `Are you sure you want to PERMANENTLY DELETE user "${userName}"? This will delete all their todos, files, and cannot be undone!`
-      : `Are you sure you want to deactivate user "${userName}"? They will be hidden from the user list but their data will be preserved.`
+      : `Are you sure you want to deactivate user "${userName}"? They will be hidden from the user list but their data will be preserved.`;
     
     if (!confirm(warningMessage)) {
       return
@@ -186,20 +185,6 @@ export default function AdminUsersPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
-              </div>
-              <div className="flex items-center space-x-4">
-                <label className="flex items-center space-x-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={showDeactivated}
-                    onChange={(e) => setShowDeactivated(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <span>Show deactivated users</span>
-                </label>
-                <span className="text-sm text-gray-500">
-                  Total: {total} users
-                </span>
               </div>
             </div>
           </CardContent>
@@ -294,13 +279,6 @@ export default function AdminUsersPage() {
                               )}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-orange-600"
-                              onClick={() => handleDeleteUser(user.id, user.name, false)}
-                            >
-                              <UserX className="mr-2 h-4 w-4" />
-                              Deactivate (Soft Delete)
-                            </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => handleDeleteUser(user.id, user.name, true)}

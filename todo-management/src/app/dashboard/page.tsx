@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import AppLayout from '@/components/layout/AppLayout'
 import TodoModal from '@/components/TodoModal'
-import { dashboardAPI } from '@/lib/api'
+import api from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -56,8 +56,8 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const response = await dashboardAPI.getStats()
-      setData(response)
+      const response = await api.get('/dashboard/stats')
+      setData(response.data.data)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
       toast({
@@ -111,7 +111,7 @@ export default function Dashboard() {
 
   const handleTodoSuccess = () => {
     // Refresh dashboard data after creating a todo
-    fetchDashboardData()
+    loadDashboardData()
   }
 
   if (isLoading) {

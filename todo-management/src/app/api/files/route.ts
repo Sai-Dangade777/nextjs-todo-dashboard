@@ -191,7 +191,17 @@ export async function GET(request: NextRequest) {
     // Build where clause
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {
-      uploadedById: user.id // Users can only see their own files
+      OR: [
+        { uploadedById: user.id }, // User's own files
+        {
+          todo: {
+            OR: [
+              { creatorId: user.id }, // Files attached to todos created by the user
+              { assigneeId: user.id } // Files attached to todos assigned to the user
+            ]
+          }
+        }
+      ]
     }
 
     if (todoId) {

@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               title: true,
-              status: true
+              status: true,
+              dueDate: true,
+              priority: true
             }
           }
         },

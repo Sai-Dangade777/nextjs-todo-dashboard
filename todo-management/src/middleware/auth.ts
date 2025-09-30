@@ -75,7 +75,7 @@ export function canAccessUser(currentUser: any, targetUserId: string): boolean {
   return currentUser.id === targetUserId || currentUser.role === 'ADMIN'
 }
 
-// Check if user can access todo
+// Check if user can access todo (view access)
 export async function canAccessTodo(userId: string, todoId: string): Promise<boolean> {
   const todo = await prisma.todo.findUnique({
     where: { id: todoId },
@@ -90,6 +90,24 @@ export async function canAccessTodo(userId: string, todoId: string): Promise<boo
   }
 
   // User can access todo if they created it or it's assigned to them
+  return todo.creatorId === userId || todo.assigneeId === userId
+}
+
+// Check if user can modify todo (edit access)
+export async function canModifyTodo(userId: string, todoId: string): Promise<boolean> {
+  const todo = await prisma.todo.findUnique({
+    where: { id: todoId },
+    select: {
+      creatorId: true,
+      assigneeId: true
+    }
+  })
+
+  if (!todo) {
+    return false
+  }
+
+  // Both the creator and the assignee can modify the todo
   return todo.creatorId === userId || todo.assigneeId === userId
 }
 
