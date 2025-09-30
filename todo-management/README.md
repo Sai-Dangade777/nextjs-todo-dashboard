@@ -349,9 +349,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ for the North Star Identity Full Stack Developer Assessment**
-
-## 💡 Assessment Notes
 
 This Todo Management System demonstrates:
 
